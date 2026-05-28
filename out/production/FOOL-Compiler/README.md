@@ -1,2 +1,0 @@
-# FOOL-Compiler
-FOOL Compiler

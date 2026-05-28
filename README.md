@@ -1,23 +1,33 @@
-# FOOL-Compiler
+# FOOL Compiler
 
-Compiler based on the ANTLR framework. The custom language support intergers, booleans, functions and classes. It doesn't support inheritance for classes yet.
+This is a simple compiler for the FOOL(Functional Object-Oriented Language) programming language, implemented in Java using ANTLR for parsing. 
+The compiler performs lexical analysis, parsing, semantic analysis, and code generation.
+The java code was provided by the course "Linguaggi, Compilatori e Modelli Computazionali" held at the University of Bologna.
 
-## Phases of the Compiler
-### Grammar Parsing
-The grammar for the FOOL language is defined in the FOOL.g4 file using ANTLR. This file specifies the syntax rules for the language. ANTLR generates a lexer and parser from this grammar, which are used to convert the source code into a parse tree.
-<br><br>
+## Build
+From the project root you can build using the Gradle wrapper:
 
-### Visitor Pattern
-The visitor pattern is used to traverse the AST (Abstract Syntax Tree). Each node in the AST has an accept method that takes a visitor. The visitor then calls the appropriate visit method for the node type. This pattern allows for separation of operations from the object structure.
-<br><br>
+```bash
+  ./gradlew build
+```
 
-### Symbol Table Analysis
-Symbol table analysis is performed by the SymbolTableASTVisitor class. This phase involves building a symbol table that maps variable and function names to their declarations. It ensures that each identifier is declared before it is used and handles scoping rules.
-<br><br>
 
-### Type Checking
-Type checking is handled by the TypeCheckEASTVisitor class. This phase ensures that the types of expressions are consistent and that operations are performed on compatible types. It checks for type errors and ensures that the program adheres to the language's type rules.
-<br><br>
+## Run / Compile a source file
+You can directly run the application and pass the file to compile as a command-line argument (optional).
 
-### Code Generation
-The CodeGenerationASTVisitor class is responsible for generating the target code from the AST. This phase translates the high-level language constructs into assembly instructions that are executed by a custom stack-based virtual machine.
+_Example_ without argument (will use default file `foolExamples/prova.fool`):
+
+```bash
+  ./gradlew run
+```
+
+_Example_ with argument:
+
+```bash
+  ./gradlew run --args="path/to/source.fool"
+```
+
+### Note 
+- replace `path/to/source.fool` with the actual file you want to compile. 
+- the file must be in the project directory.
+- if your shell interprets backslashes or special characters, quote or escape the path as appropriate.
