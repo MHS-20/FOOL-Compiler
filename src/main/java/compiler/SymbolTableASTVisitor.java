@@ -291,94 +291,103 @@ public class SymbolTableASTVisitor extends BaseASTVisitor<Void,VoidException> {
 		return null;
 	}
 
-	// OBJECT-ORIENTED EXTENSION
+	// OBJECT-ORIENTED
 
 	@Override
-	public Void visitNode(ClassNode n) throws VoidException {
-		if (print) printNode(n);
+public Void visitNode(ClassNode n) throws VoidException {
+    if (print) printNode(n);
 
-		// Prendo la HashMap per il nesting level corrente (globale)
-		Map<String, STentry> globalSymTable = symTable.get(0);
+    Map<String, STentry> globalSymTable = symTable.get(0);
 
-		// Array vuoto per i tipi dei campi
-		List<TypeNode> allFields = new ArrayList<>();
+    List<TypeNode> allFields = new ArrayList<>();
+    List<ArrowTypeNode> allMethods = new ArrayList<>();
 
-		// Array vuoto per i tipi dei metodi
-		List<ArrowTypeNode> allMethods = new ArrayList<>();
-
-		if (n.superId != null) {
-			STentry superClassEntry = globalSymTable.get(n.superId);
-			n.superEntry = superClassEntry;
-			ClassTypeNode classType = (ClassTypeNode) superClassEntry.type;
-            allFields.addAll(classType.allFields);
-			allMethods.addAll(classType.allMethods);
-		}
-		// Creo un STentry con: nesting level, liste dei tipi (campi e metodi) e Offset
-		STentry entry = new STentry(0, new ClassTypeNode(allFields, allMethods), decOffset--);
-		n.setType(entry.type);
-
-		// Inserisco il mio ID + entry nella SymbolTable
-		if (globalSymTable.put(n.id, entry) != null) {
-			System.out.println("Class id " + n.id + " at line "+ n.getLine() +" already declared");
-			stErrors++;
-		}
-
-		nestingLevel++;
-		Map<String, STentry> virtualTable = new HashMap<>();
-		if (n.superId != null) {
-			Map<String, STentry> superClassTable = classTable.get(n.superId);
-			virtualTable.putAll(superClassTable);
-		}
-		symTable.add(virtualTable);
-		classTable.put(n.id, virtualTable);
-
-        int fieldOffset = -allFields.size() - 1;
-        Set<String> newFields = new HashSet<>();
-        for (FieldNode field : n.fieldList) {
-            if (print) printNode(field);
-            STentry oldEntry = virtualTable.get(field.id);
-            STentry fieldEntry;
-            if (!newFields.add(field.id)) {
-				System.out.println("Field id " +  field.id + " at line " + field.getLine() + " already declared");
-				stErrors++;
-            }
-            if (oldEntry == null) {
-                fieldEntry = new STentry(nestingLevel, field.getType(), fieldOffset--);
-            } else {
-                if (oldEntry.type instanceof ArrowTypeNode) {
-                    System.out.println("Cannot override method " + field.id + "() at line "
-                            + field.getLine() + " with field " + field.id);
-                    stErrors++;
-                }
-                fieldEntry = new STentry(nestingLevel, field.getType(), oldEntry.offset);
-            }
-            field.offset = fieldEntry.offset;
-            virtualTable.put(field.id, fieldEntry);
-            allFields.add(-fieldEntry.offset - 1, field.getType());
+    // --- INHERITANCE: copy parent's fields/methods and set superEntry ---
+    if (n.superId != null) {
+        STentry superClassEntry = globalSymTable.get(n.superId);
+        if (superClassEntry == null || !classTable.containsKey(n.superId)) {
+            System.out.println("Super class id " + n.superId + " at line " + n.getLine() + " not declared");
+            stErrors++;
+        } else {
+            n.superEntry = superClassEntry;
+            ClassTypeNode classType = (ClassTypeNode) superClassEntry.type;
+            allFields.addAll(classType.allFields);    // deep copy of contents (new ArrayList)
+            allMethods.addAll(classType.allMethods);
         }
+    }
 
-		// Salvo l'offset di questo livello prima di resettare per il prossimo
-		int prevNLDecOffset = decOffset;
-		decOffset = allMethods.size();
-		Set<String> newMethods = new HashSet<>();
+    STentry entry = new STentry(0, new ClassTypeNode(allFields, allMethods), decOffset--);
+    n.setType(entry.type);
 
-		for (MethodNode method : n.methodList) {
-			if (!newMethods.add(method.id)) {
-				System.out.println("Method id " +  method.id + " at line " + method.getLine() + " already declared");
-				stErrors++;
-			}
-			visit(method);
-			allMethods.add(method.offset, (ArrowTypeNode) method.getType());
-		}
+    if (globalSymTable.put(n.id, entry) != null) {
+        System.out.println("Class id " + n.id + " at line " + n.getLine() + " already declared");
+        stErrors++;
+    }
 
-		// Rimuovo l'HashMap perché esco dallo scope interno
-		symTable.remove(nestingLevel--);
+    nestingLevel++;
+    Map<String, STentry> virtualTable = new HashMap<>();
+    if (n.superId != null && classTable.containsKey(n.superId)) {
+        virtualTable.putAll(classTable.get(n.superId));  // inherit parent's VT entries
+    }
+    symTable.add(virtualTable);
+    classTable.put(n.id, virtualTable);
 
-		// Ripristino l'offset precedente
-		decOffset=prevNLDecOffset;
+    int fieldOffset = -allFields.size() - 1;
+    Set<String> declaredInThisClass = new HashSet<>();
 
-		return null;
-	}
+    for (FieldNode field : n.fieldList) {
+        if (print) printNode(field);
+        if (!declaredInThisClass.add(field.id)) {
+            System.out.println("Field id " + field.id + " at line " + field.getLine() + " already declared");
+            stErrors++;
+        }
+        STentry oldEntry = virtualTable.get(field.id);
+        STentry fieldEntry;
+        if (oldEntry == null) {
+            // New field
+            fieldEntry = new STentry(nestingLevel, field.getType(), fieldOffset--);
+        } else {
+            if (oldEntry.type instanceof ArrowTypeNode) {
+                System.out.println("Cannot override method " + field.id + "() at line "
+                        + field.getLine() + " with field " + field.id);
+                stErrors++;
+            }
+            // Override: keep parent's offset
+            fieldEntry = new STentry(nestingLevel, field.getType(), oldEntry.offset);
+        }
+        field.offset = fieldEntry.offset;
+        virtualTable.put(field.id, fieldEntry);
+
+        int fieldPos = -fieldEntry.offset - 1;
+        if (fieldPos < allFields.size()) {
+            allFields.set(fieldPos, field.getType());
+        } else {
+            allFields.add(field.getType());
+        }
+    }
+
+    int prevNLDecOffset = decOffset;
+    decOffset = allMethods.size();  // method offsets continue from parent's count
+    Set<String> declaredMethodsInThisClass = new HashSet<>();
+
+    for (MethodNode method : n.methodList) {
+        if (!declaredMethodsInThisClass.add(method.id)) {
+            System.out.println("Method id " + method.id + " at line " + method.getLine() + " already declared");
+            stErrors++;
+        }
+        visit(method);  // sets method.offset and method.type
+
+        if (method.offset < allMethods.size()) {
+            allMethods.set(method.offset, (ArrowTypeNode) method.getType());
+        } else {
+            allMethods.add((ArrowTypeNode) method.getType());
+        }
+    }
+
+    symTable.remove(nestingLevel--);
+    decOffset = prevNLDecOffset;
+    return null;
+}
 
 	@Override
 	public Void visitNode(MethodNode n) throws VoidException {
@@ -403,7 +412,8 @@ public class SymbolTableASTVisitor extends BaseASTVisitor<Void,VoidException> {
 						+ n.getLine() + " with method " + n.id +"()");
 				stErrors++;
 			}
-			methodEntry = new STentry(nestingLevel, oldEntry.type, oldEntry.offset);
+          methodEntry = new STentry(nestingLevel, new ArrowTypeNode(parTypes, n.retType), oldEntry.offset);
+
 		}
 
 		n.offset = methodEntry.offset;

@@ -408,7 +408,7 @@ public class CodeGenerationASTVisitor extends BaseASTVisitor<String, VoidExcepti
 		String argValueCode = null, argToHeap = null, getAR = null;
 		for (int i=0;i<n.argList.size();i++)
 			argValueCode=nlJoin(argValueCode,visit(n.argList.get(i)));
-		for (int i=n.argList.size()-1;i>=0;i--) {
+		for (int i=0;i<n.argList.size();i++) {
 			argToHeap = nlJoin(
 					argToHeap,
 					// Metto nell'Heap
