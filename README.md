@@ -2,7 +2,6 @@
 
 This is a compiler for **FOOL** (Functional Object-Oriented Language), a statically-typed language combining functional and object-oriented programming. 
 The compiler is implemented in Java using ANTLR4 for lexing and parsing, and targets a custom **Stack Virtual Machine (SVM)**.
----
 
 ## Language Overview
 
